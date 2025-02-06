@@ -34,7 +34,7 @@ precariedad_cruzada <- Base %>%
             registrados = sum(PONDERA[CAT_OCUP == 3 & PP07H == 1],na.rm = T),
             no_registrados = sum(PONDERA[CAT_OCUP == 3 & PP07H == 2],na.rm = T),
             inestables= sum(PONDERA[CAT_OCUP == 3 & PP07E == c(1,2,3)],na.rm = T),
-            #empezamos con informalidad
+            #empezamos con informalidad, dejo sólo 2 condiciones y después vemos si incorporamos las demás:
             informales_1 = sum(PONDERA[CAT_OCUP == 4],na.rm = T), #T.fam.sin rem.
             informales_2 = sum(PONDERA[CAT_OCUP == 3& PP04C99==1],na.rm = T), #asal.microeest.
 #ahora viene el problema, sumarlos sin doble/triple contabilización:
