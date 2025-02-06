@@ -9,7 +9,22 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-## R Markdown
+```{r}
+library(shiny)
+library(flexdashboard)
+library(eph)
+library(plotly)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+variables <- c("CODUSU","NRO_HOGAR","COMPONENTE","ANO4","TRIMESTRE","AGLOMERADO","REGION","CH04","CH06","ESTADO","CAT_OCUP","CAT_INAC","PP04C99","PP07E","PP07H","NIVEL_ED","PONDERA")
+
+
+Base <- get_microdata(year=2024,period = 3, vars = variables)
+```
+
+## Composición de la población argentina
 
 This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
