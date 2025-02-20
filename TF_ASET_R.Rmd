@@ -1,66 +1,402 @@
 ---
-title: "TF ASET"
+title: "Trabajo Final R"
 authors: "Nery Rauch y Luciana Zuñiga"
 date: "2025-02-06"
 output: html_document
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{=html}
+<style> 
+h1 {
+  text-align: center;
+  color:black;
+} </style>
 ```
 
-```{r}
-library(shiny)
-library(flexdashboard)
-library(eph)
-library(plotly)
+```{=html}
+<style>  body {
+  text-align: justify;
+  color:black;
+}
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, include=TRUE)
 library(tidyverse)
-library(ggplot2)
+library(openxlsx)
+library(eph)
+library(scales)
+library(openxlsx)
 library(dplyr)
+library(knitr)
+library(kableExtra)
+library(gt)
+library(formattable)
+library(ggplot2)
+library(tidyr)
+library(scales)
+
 
 variables <- c("CODUSU","NRO_HOGAR","COMPONENTE","ANO4","TRIMESTRE","AGLOMERADO","REGION","CH04","CH06","ESTADO","CAT_OCUP","CAT_INAC","PP04C99","PP07E","PP07H","NIVEL_ED","PONDERA")
 
 
-Base <- get_microdata(year=2024,period = 3, vars = variables)
+Base <- get_microdata(year=2024, period = 3, vars = variables)
+
+Base <- Base %>%
+  rename(Sexo=CH04) %>% 
+  mutate(Sexo = recode(Sexo, `1` = "Hombre", `2` = "Mujer"))
 ```
 
-## Composición de la población argentina
+# **Procesamientos EPH-INDEC: Tercer trimestre de 2024**
 
-## Precariedad por variables sociodemográficas
+Procesamientos de elaboración propia en base a la Encuesta Permantent de Hogares del Instituto Nacional de Estadisticas y Censos (Argentina). La EPH continua constituye el relevamiento socioeconómico de 31 aglomerados urbanos del país, donde habita, aproximadamente, el 70% de la población. Cubre todas las capitales de provincia y aglomerados urbanos de más de 100 mil habitantes. Tiene una periodicidad trimestral y se realizan 4 estimaciones por año de los principales indicadores del mercado de trabajo.
+
+<br>
+
+## **Población argentina en base a sexo**
+
+En esta tabla se puede observar la composición total de la población relevada en base al sexo.
+
 ```{r}
-precariedad_cruzada <- Base %>%
-  group_by(CH04, CH06, NIVEL_ED) %>% 
-  summarise(asalariados = sum(PONDERA [CAT_OCUP == 3],na.rm = T),
-            registrados = sum(PONDERA[CAT_OCUP == 3 & PP07H == 1],na.rm = T),
-            no_registrados = sum(PONDERA[CAT_OCUP == 3 & PP07H == 2],na.rm = T),
-            inestables= sum(PONDERA[CAT_OCUP == 3 & PP07E == c(1,2,3)],na.rm = T),
-            #empezamos con informalidad, dejo sólo 2 condiciones y después vemos si incorporamos las demás:
-            informales_1 = sum(PONDERA[CAT_OCUP == 4],na.rm = T), #T.fam.sin rem.
-            informales_2 = sum(PONDERA[CAT_OCUP == 3& PP04C99==1],na.rm = T), #asal.microeest.
-#ahora viene el problema, sumarlos sin doble/triple contabilización:
-total_informales = sum(informales_1| informales_2,na.rm = T),
-precarios_total = sum(no_registrados| inestables| total_informales,na.rm = T),
-#calculamos tasas
-tasa_no_registro= no_registrados/asalariados,
-tasa_inestabilidad= inestables/asalariados,
-tasa_informalidad= total_informales/asalariados,
-tasa_precariedad= precarios_total/asalariados)
+Base_Sexo <- Base %>% 
+summarise(Varones = sum(PONDERA [Sexo == "Hombre"],na.rm = T),
+            Mujeres = sum(PONDERA[Sexo == "Mujer"],na.rm = T),
+          Total= sum (PONDERA, na.rm=T)
+         )
+Base_Sexo <- Base_Sexo %>%
+  mutate(across(everything(), ~ formatC(., format = "f", big.mark = ".", decimal.mark = ",", digits = 0)))
+
+kable(Base_Sexo, caption = "Población según Sexo") %>% 
+kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "responsive")) %>%
+  row_spec(0, bold = TRUE, background = "white", extra_css = "text-align: center; color: black;") %>%
+  column_spec(1, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;") %>%
+  column_spec(2, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;") %>%
+  column_spec(3, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;")
+
 ```
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+<br>
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+## **Población argentina en base a franja etaria**
 
-```{r cars}
-summary(cars)
+En esta tabla se puede observar la composición total de la población relevada en base al segmento etario.
+
+```{r}
+Base_Franjas_Etarias<- Base %>% 
+  mutate(Franjas_Etarias=
+           case_when(
+    CH06 < 15 ~ "Menores",
+    CH06 >= 15 & CH06 <= 18 ~ "Jov.15-18",
+    CH06 >= 19 & CH06 <= 24 ~ "Jov.19-24",
+    CH06 >= 25 & CH06 <= 29 ~ "Jov.25-29",
+    CH06 >= 30 & CH06 <= 34 ~ "Jov.30-34",
+    CH06 >= 35 & CH06 <= 64 ~ "Adultos",
+    CH06 > 64 ~ "Adultos Mayores")
+  )
 ```
 
-## Including Plots
+```{r}
+Tabla_Franjas_Etarias <- Base_Franjas_Etarias %>% 
+  summarise (
+    "Menores" = sum(PONDERA[Franjas_Etarias %in% "Menores"]), 
+    "Juventudes" = sum(PONDERA[Franjas_Etarias %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29", "Jov.30-34")]), 
+    "Adultos" = sum(PONDERA[Franjas_Etarias %in% "Adultos"]), 
+    "Adultos Mayores" = sum(PONDERA[Franjas_Etarias %in% "Adultos Mayores"]),
+    "Total"= sum (PONDERA)
+  )
 
-You can also embed plots, for example:
+Tabla_Franjas_Etarias <- Tabla_Franjas_Etarias %>%
+  mutate(across(everything(), ~ formatC(., format = "f", big.mark = ".", decimal.mark = ",", digits = 0)))
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+kable(Tabla_Franjas_Etarias, caption = "Población según franja etaria") %>% 
+ kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "responsive")) %>%
+  column_spec(1, bold = TRUE, color = "black",background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(2, bold = TRUE, color = "black",background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black",background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(4, bold = TRUE, color = "black",background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(5, bold = TRUE, color = "black",background = "white", extra_css = "padding: 10px;text-align: center;")
+
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+<br>
+
+## **Población argentina en base a nivel educativo**
+
+Con el objeto de desentramar con mayor detalle las características de la población relevada por la EPH, en esta ocación se presenta la composición por el nivel educativo alcanzado.
+
+```{r, echo=FALSE, warning=FALSE}
+Base_Nivel_Educativo<- Base %>%
+    mutate(
+    nivel.ed = factor(
+      case_when(NIVEL_ED %in% c(7,1,2,3) ~ "Menor a Secundaria",
+                NIVEL_ED %in% c(4,5) ~ "Secundaria Completa",
+                NIVEL_ED == 6 ~ "Superior Completo",
+                TRUE ~ "Ns/Nr"),
+      levels = c("Menor a Secundaria","Secundaria Completa","Superior Completo"))
+    )
+```
+
+```{r}
+Tabla_Nivel_Educativo<-Base_Nivel_Educativo %>% 
+  summarise(
+    "Menor a Secundaria" = sum(PONDERA[nivel.ed == "Menor a Secundaria"], na.rm = TRUE),
+    "Secundaria Completa" = sum(PONDERA[nivel.ed == "Secundaria Completa"], na.rm = TRUE),
+    "Superior Completo" = sum(PONDERA[nivel.ed == "Superior Completo"], na.rm = TRUE),
+    "Total" = sum(PONDERA, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+Tabla_Nivel_Educativo <- Tabla_Nivel_Educativo %>%
+  mutate(across(everything(), ~ formatC(., format = "f", big.mark = ".", decimal.mark = ",", digits = 0)))
+
+kable(Tabla_Nivel_Educativo, caption = "Población según nivel educativo") %>% 
+kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "responsive")) %>%
+  row_spec(0,extra_css = "padding: 10px;text-align: center;") %>% 
+  column_spec(1, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(2, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;text-align: center;") %>% 
+   column_spec(4, bold = TRUE, color = "black",
+              background = "white", 
+              extra_css = "padding: 10px;text-align: center;")
+```
+
+```{r, echo=FALSE,out.width='100%'}
+knitr::include_graphics("~/POSGRADO/CURSOS DE DOCTORADO/CURSO R/Informes y precesamientos personales de EPH/barra azul.png")
+```
+
+## Precariedad laboral
+
+A continuación se aborda la precariedad laboral en el mercado de trabajo argentino de la población ocupada (exceptuando patrones y cuentapropistas).
+
+```{r}
+format_number <- function(x) {
+  formatC(x, format = "f", big.mark = ".", decimal.mark = ",", digits = 0)
+}
+
+```
+
+```{r}
+Precariedad <- Base %>%
+  filter(ESTADO == 1) %>%  
+  mutate(
+    dummy_precariedad = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0)
+  ) %>%
+  summarise( 
+    "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
+    "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
+    "Población ocupada" = sum(PONDERA, na.rm = TRUE)
+  )
+
+
+kable(Precariedad, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad") %>% 
+  kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "responsive")) %>%
+  row_spec(0, extra_css = "padding: 10px;text-align: center;") %>% 
+  column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: center;")
+```
+
+```{r, include=FALSE}
+Porcentaje_Precariedad <- Precariedad %>%
+  summarise( 
+    `Porc. de trabajadores precarios` = (`Trabajador en precariedad` / `Población ocupada`) * 100,
+    `Porc. de trabajadores no precarios` = (`Trabajador en no precariedad` / `Población ocupada`) * 100
+  )
+```
+
+```{r}
+Grafico_Precariedad <- Porcentaje_Precariedad %>%
+  pivot_longer(cols = everything(), names_to = "Tipo", values_to = "Porcentaje")
+
+# Crear el gráfico de torta
+ggplot(Grafico_Precariedad, aes(x = "", y = Porcentaje, fill = Tipo)) +
+  geom_bar(stat = "identity", width = 1) +
+  coord_polar("y") +
+  labs(title = "Porcentaje de trabajadores ocupados en base a situación de precariedad", 
+       x = "", 
+       y = "") +
+  theme_minimal() +
+  theme(legend.title = element_blank()) +
+  geom_text(aes(label = sprintf("%.1f%%", Porcentaje)), 
+            position = position_stack(vjust = 0.5))
+```
+
+<br>
+
+## Precariedad según sexo
+
+```{r}
+Precariedad_Sexo <- Base %>%
+  filter(ESTADO == 1) %>%  
+  mutate(
+    dummy_precariedad = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0)
+  ) %>%
+  group_by(Sexo) %>%
+  summarise( 
+    "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
+    "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
+    "Población ocupada" = sum(PONDERA, na.rm = TRUE)
+  ) %>%
+  ungroup() 
+
+kable(Precariedad_Sexo, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+  kable_styling(full_width = FALSE, position = "center",
+  bootstrap_options = c("striped", "hover", "responsive")) %>%
+  column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
+  column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(4, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;")
+```
+
+```{r, include=FALSE}
+Porcentaje_Precariedad_Sexo <- Precariedad_Sexo %>%
+  group_by(Sexo) %>% 
+  summarise( 
+    `Porc. de trabajadores en precariedad` = (`Trabajador en precariedad` / `Población ocupada`) * 100,
+    `Porc. de trabajadores no precariedad` = (`Trabajador en no precariedad` / `Población ocupada`) * 100
+  )
+print(Porcentaje_Precariedad_Sexo)
+```
+
+```{r}
+Grafico_Precariedad_Sexo<- Porcentaje_Precariedad_Sexo %>%
+  pivot_longer(cols = c(`Porc. de trabajadores en precariedad`, `Porc. de trabajadores no precariedad`), 
+               names_to = "Situación", 
+               values_to = "Porcentaje")
+
+
+ggplot(Grafico_Precariedad_Sexo, aes(x = Sexo, y = Porcentaje, fill = Situación)) +
+  geom_bar(stat = "identity") +
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),
+            position = position_stack(vjust = 0.5),  
+            color = "black") +  
+  labs(title = "Porcentaje de Trabajadores por situación de precariedad y sexo",
+       x = "Sexo", 
+       y = "Porcentaje",
+       fill = "Situación") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + 
+  scale_fill_manual(values = c("Porc. de trabajadores en precariedad" = "lightcoral", 
+                                "Porc. de trabajadores no precariedad" = "lightblue"))
+```
+
+<br>
+
+## Precariedad según franja etaria
+
+```{r}
+Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
+  filter(ESTADO == 1) %>%  
+  mutate(
+    dummy_precariedad = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0)
+  ) %>%
+  group_by(Franjas_Etarias) %>%
+  summarise( 
+    "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
+    "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
+    "Población ocupada" = sum(PONDERA, na.rm = TRUE)
+  ) %>%
+  ungroup() 
+
+kable(Precariedad_Franja_Etaria, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+  kable_styling(full_width = FALSE, position = "center",
+  bootstrap_options = c("striped", "hover", "responsive")) %>%
+  column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
+  column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(4, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;")
+```
+
+```{r, include=FALSE}
+Porcentaje_Precariedad_Franja_Etaria <- Precariedad_Franja_Etaria %>%
+  group_by(Franjas_Etarias) %>% 
+  summarise( 
+    `Porc. de trabajadores en precariedad` = (`Trabajador en precariedad` / `Población ocupada`) * 100,
+    `Porc. de trabajadores no precariedad` = (`Trabajador en no precariedad` / `Población ocupada`) * 100
+  )
+print(Porcentaje_Precariedad_Franja_Etaria)
+```
+
+```{r}
+Grafico_Precariedad_Franja_Etaria<- Porcentaje_Precariedad_Franja_Etaria %>%
+  pivot_longer(cols = c(`Porc. de trabajadores en precariedad`, `Porc. de trabajadores no precariedad`), 
+               names_to = "Situación", 
+               values_to = "Porcentaje")
+
+
+ggplot(Grafico_Precariedad_Franja_Etaria, aes(x = Franjas_Etarias, y = Porcentaje, fill = Situación)) +
+  geom_bar(stat = "identity", position = "stack") +
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),
+            position = position_stack(vjust = 0.5),  
+            color = "black") +  
+  labs(title = "Porcentaje de Trabajadores por situación de precariedad y franja etaria",
+       x = "Franja Etaria", 
+       y = "Porcentaje",
+       fill = "Situación") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + 
+  scale_fill_manual(values = c("Porc. de trabajadores en precariedad" = "lightcoral", 
+                                "Porc. de trabajadores no precariedad" = "lightblue"))
+```
+
+<br>
+
+## Precariedad según nivel educativo
+
+```{r}
+Precariedad_Nivel_Educativo <- Base %>%
+  filter(ESTADO == 1) %>%  
+  mutate(
+    dummy_precariedad = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0)
+  ) %>%
+  group_by(NIVEL_ED) %>%
+  summarise( 
+    "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
+    "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
+    "Población ocupada" = sum(PONDERA, na.rm = TRUE)
+  ) %>%
+  ungroup() 
+
+kable(Precariedad_Franja_Etaria, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+  kable_styling(full_width = FALSE, position = "center",
+  bootstrap_options = c("striped", "hover", "responsive")) %>%
+  column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
+  column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
+  column_spec(4, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;")
+
+
+```
