@@ -1,8 +1,10 @@
 ---
 title: "Trabajo Final R"
-authors: "Nery Rauch y Luciana Zuñiga"
+authors: Nery Rauch y Luciana Zuñiga
 date: "2025-02-06"
-output: html_document
+output:
+  html_document: default
+  pdf_document: default
 ---
 
 ```{=html}
@@ -21,8 +23,15 @@ h1 {
 </style>
 ```
 
+tinytex::install_tinytex()
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, include=TRUE)
+tinytex::tinytex_root()
+
+update.packages(ask = FALSE)
+tinytex::tlmgr_update()
+
 library(tidyverse)
 library(openxlsx)
 library(eph)
@@ -88,16 +97,17 @@ kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("st
 
 En esta tabla se puede observar la composición total de la población relevada en base al segmento etario.
 
+Nota: Los menores conforman a la población relevada desde el nacimiento hasta los 14 años inclusive, las juventudes abracan desde los 15 hasta los 29 años inclusive, los adultos desde los 30 años hasta los 64 años inclusive y los adultos mayores quienes tienen 65 años o más.
+
 ```{r}
 Base_Franjas_Etarias<- Base %>% 
-  mutate(Franjas_Etarias=
+  mutate("Franja Etaria"=
            case_when(
     CH06 < 15 ~ "Menores",
     CH06 >= 15 & CH06 <= 18 ~ "Jov.15-18",
     CH06 >= 19 & CH06 <= 24 ~ "Jov.19-24",
     CH06 >= 25 & CH06 <= 29 ~ "Jov.25-29",
-    CH06 >= 30 & CH06 <= 34 ~ "Jov.30-34",
-    CH06 >= 35 & CH06 <= 64 ~ "Adultos",
+    CH06 >= 30 & CH06 <= 64 ~ "Adultos",
     CH06 > 64 ~ "Adultos Mayores")
   )
 ```
@@ -105,10 +115,10 @@ Base_Franjas_Etarias<- Base %>%
 ```{r}
 Tabla_Franjas_Etarias <- Base_Franjas_Etarias %>% 
   summarise (
-    "Menores" = sum(PONDERA[Franjas_Etarias %in% "Menores"]), 
-    "Juventudes" = sum(PONDERA[Franjas_Etarias %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29", "Jov.30-34")]), 
-    "Adultos" = sum(PONDERA[Franjas_Etarias %in% "Adultos"]), 
-    "Adultos Mayores" = sum(PONDERA[Franjas_Etarias %in% "Adultos Mayores"]),
+    "Menores" = sum(PONDERA[`Franja Etaria` %in% "Menores"]), 
+    "Juventudes" = sum(PONDERA[`Franja Etaria` %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29")]), 
+    "Adultos" = sum(PONDERA[`Franja Etaria` %in% "Adultos"]), 
+    "Adultos Mayores" = sum(PONDERA[`Franja Etaria` %in% "Adultos Mayores"]),
     "Total"= sum (PONDERA)
   )
 
@@ -134,7 +144,7 @@ Con el objeto de desentramar con mayor detalle las características de la poblac
 ```{r, echo=FALSE, warning=FALSE}
 Base_Nivel_Educativo<- Base %>%
     mutate(
-    nivel.ed = factor(
+    "Nivel Educativo" = factor(
       case_when(NIVEL_ED %in% c(7,1,2,3) ~ "Menor a Secundaria",
                 NIVEL_ED %in% c(4,5) ~ "Secundaria Completa",
                 NIVEL_ED == 6 ~ "Superior Completo",
@@ -146,9 +156,9 @@ Base_Nivel_Educativo<- Base %>%
 ```{r}
 Tabla_Nivel_Educativo<-Base_Nivel_Educativo %>% 
   summarise(
-    "Menor a Secundaria" = sum(PONDERA[nivel.ed == "Menor a Secundaria"], na.rm = TRUE),
-    "Secundaria Completa" = sum(PONDERA[nivel.ed == "Secundaria Completa"], na.rm = TRUE),
-    "Superior Completo" = sum(PONDERA[nivel.ed == "Superior Completo"], na.rm = TRUE),
+    "Menor a Secundaria" = sum(PONDERA[`Nivel Educativo` == "Menor a Secundaria"], na.rm = TRUE),
+    "Secundaria Completa" = sum(PONDERA[`Nivel Educativo` == "Secundaria Completa"], na.rm = TRUE),
+    "Superior Completo" = sum(PONDERA[`Nivel Educativo` == "Superior Completo"], na.rm = TRUE),
     "Total" = sum(PONDERA, na.rm = TRUE),
     .groups = 'drop'
   )
@@ -182,13 +192,6 @@ knitr::include_graphics("~/POSGRADO/CURSOS DE DOCTORADO/CURSO R/Informes y prece
 A continuación se aborda la precariedad laboral en el mercado de trabajo argentino de la población ocupada (exceptuando patrones y cuentapropistas).
 
 ```{r}
-format_number <- function(x) {
-  formatC(x, format = "f", big.mark = ".", decimal.mark = ",", digits = 0)
-}
-
-```
-
-```{r}
 Precariedad <- Base %>%
   filter(ESTADO == 1) %>%  
   mutate(
@@ -205,8 +208,11 @@ Precariedad <- Base %>%
     "Población ocupada" = sum(PONDERA, na.rm = TRUE)
   )
 
+Precariedad_Tabla <- Precariedad %>%
+  mutate(across(everything(), ~ formatC(., format = "f", big.mark = ".", decimal.mark = ",", digits = 0)))
 
-kable(Precariedad, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad") %>% 
+
+kable(Precariedad_Tabla, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad") %>% 
   kable_styling(full_width = FALSE, position = "center", bootstrap_options = c("striped", "hover", "responsive")) %>%
   row_spec(0, extra_css = "padding: 10px;text-align: center;") %>% 
   column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: center;") %>%
@@ -262,7 +268,11 @@ Precariedad_Sexo <- Base %>%
   ) %>%
   ungroup() 
 
-kable(Precariedad_Sexo, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+Precariedad_Sexo_Tabla <- Precariedad_Sexo %>%
+  mutate(across(everything(), ~ formatC(., format = "f", big.mark = ".", decimal.mark = ",", digits = 0)))
+
+
+kable(Precariedad_Sexo_Tabla, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
   kable_styling(full_width = FALSE, position = "center",
   bootstrap_options = c("striped", "hover", "responsive")) %>%
   column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
@@ -309,7 +319,7 @@ ggplot(Grafico_Precariedad_Sexo, aes(x = Sexo, y = Porcentaje, fill = Situación
 
 ```{r}
 Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
-  filter(ESTADO == 1) %>%  
+  filter(ESTADO == 1 & `Franja Etaria` != "Menores" & `Franja Etaria` != "Adultos Mayores") %>%  
   mutate(
     dummy_precariedad = ifelse(
       (CAT_OCUP == 3 & PP07H == 2) | 
@@ -318,7 +328,7 @@ Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
       (CAT_OCUP == 3 & PP04C99 == 1),
       1, 0)
   ) %>%
-  group_by(Franjas_Etarias) %>%
+  group_by(`Franja Etaria`) %>%
   summarise( 
     "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
     "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
@@ -326,7 +336,20 @@ Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
   ) %>%
   ungroup() 
 
-kable(Precariedad_Franja_Etaria, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+Orden_Franja <- c("Jov.15-18","Jov.19-24","Jov.25-29","Adultos")  
+
+# Modificar el orden de las franjas etarias y formatear
+Precariedad_Franja_Etaria_Tabla <- Precariedad_Franja_Etaria %>%
+  mutate(`Franja Etaria` = factor(`Franja Etaria`, levels = Orden_Franja)) 
+
+Precariedad_Franja_Etaria_Tabla <- Precariedad_Franja_Etaria %>%
+  mutate(
+    "Trabajador en precariedad" = formatC(`Trabajador en precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
+    "Trabajador en no precariedad" = formatC(`Trabajador en no precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
+    "Población ocupada" = formatC(`Población ocupada`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0)
+  )
+  
+kable(Precariedad_Franja_Etaria_Tabla, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad y la franja etaria", align = 'c') %>% 
   kable_styling(full_width = FALSE, position = "center",
   bootstrap_options = c("striped", "hover", "responsive")) %>%
   column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
@@ -337,12 +360,11 @@ kable(Precariedad_Franja_Etaria, caption = "Cantidad de trabajadores ocupados en
 
 ```{r, include=FALSE}
 Porcentaje_Precariedad_Franja_Etaria <- Precariedad_Franja_Etaria %>%
-  group_by(Franjas_Etarias) %>% 
+  group_by(`Franja Etaria`) %>% 
   summarise( 
     `Porc. de trabajadores en precariedad` = (`Trabajador en precariedad` / `Población ocupada`) * 100,
     `Porc. de trabajadores no precariedad` = (`Trabajador en no precariedad` / `Población ocupada`) * 100
   )
-print(Porcentaje_Precariedad_Franja_Etaria)
 ```
 
 ```{r}
@@ -352,8 +374,8 @@ Grafico_Precariedad_Franja_Etaria<- Porcentaje_Precariedad_Franja_Etaria %>%
                values_to = "Porcentaje")
 
 
-ggplot(Grafico_Precariedad_Franja_Etaria, aes(x = Franjas_Etarias, y = Porcentaje, fill = Situación)) +
-  geom_bar(stat = "identity", position = "stack") +
+ggplot(Grafico_Precariedad_Franja_Etaria, aes(x = `Franja Etaria`, y = Porcentaje, fill = Situación)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
   geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),
             position = position_stack(vjust = 0.5),  
             color = "black") +  
@@ -364,7 +386,8 @@ ggplot(Grafico_Precariedad_Franja_Etaria, aes(x = Franjas_Etarias, y = Porcentaj
   theme_minimal() +
   scale_y_continuous(labels = scales::percent_format(scale = 1)) + 
   scale_fill_manual(values = c("Porc. de trabajadores en precariedad" = "lightcoral", 
-                                "Porc. de trabajadores no precariedad" = "lightblue"))
+                                "Porc. de trabajadores no precariedad" = "lightblue"))+
+theme(axis.text.x = element_text(margin = margin(b = 10)))
 ```
 
 <br>
@@ -372,7 +395,7 @@ ggplot(Grafico_Precariedad_Franja_Etaria, aes(x = Franjas_Etarias, y = Porcentaj
 ## Precariedad según nivel educativo
 
 ```{r}
-Precariedad_Nivel_Educativo <- Base %>%
+Precariedad_Nivel_Educativo <- Base_Nivel_Educativo %>%
   filter(ESTADO == 1) %>%  
   mutate(
     dummy_precariedad = ifelse(
@@ -382,7 +405,7 @@ Precariedad_Nivel_Educativo <- Base %>%
       (CAT_OCUP == 3 & PP04C99 == 1),
       1, 0)
   ) %>%
-  group_by(NIVEL_ED) %>%
+  group_by(`Nivel Educativo`) %>%
   summarise( 
     "Trabajador en precariedad" = sum(PONDERA[dummy_precariedad == 1], na.rm = TRUE),
     "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
@@ -390,13 +413,58 @@ Precariedad_Nivel_Educativo <- Base %>%
   ) %>%
   ungroup() 
 
-kable(Precariedad_Franja_Etaria, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad", align = 'c') %>% 
+Orden_Nivel <- c("Menor a Secundaria","Secundaria Completa","Superior Completo")  
+
+# Modificar el orden de las franjas etarias
+Precariedad_Nivel_Educativo_Tabla <- Precariedad_Nivel_Educativo %>%
+  mutate(`Nivel Educativo` = factor(`Nivel Educativo`, levels = Orden_Nivel))
+
+# Crear una tabla de presentación con valores formateados
+Precariedad_Nivel_Educativo_Tabla <- Precariedad_Nivel_Educativo %>%
+  mutate(
+    "Trabajador en precariedad" = formatC(`Trabajador en precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
+    "Trabajador en no precariedad" = formatC(`Trabajador en no precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
+    "Población ocupada" = formatC(`Población ocupada`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0)
+  )
+
+# Mostrar la tabla con el nuevo orden
+kable(Precariedad_Nivel_Educativo_Tabla, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad y el nivel educativo", align = 'c') %>% 
   kable_styling(full_width = FALSE, position = "center",
   bootstrap_options = c("striped", "hover", "responsive")) %>%
   column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
   column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
   column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
   column_spec(4, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;")
+```
+
+```{r, include=FALSE}
+Porcentaje_Precariedad_Nivel_Educativo <- Precariedad_Nivel_Educativo %>%
+  group_by(`Nivel Educativo`) %>% 
+  summarise( 
+    `Porc. de trabajadores en precariedad` = (`Trabajador en precariedad` / `Población ocupada`) * 100,
+    `Porc. de trabajadores no precariedad` = (`Trabajador en no precariedad` / `Población ocupada`) * 100
+  )
+```
+
+```{r}
+Grafico_Precariedad_Nivel_Educativo<- Porcentaje_Precariedad_Nivel_Educativo %>%
+  pivot_longer(cols = c(`Porc. de trabajadores en precariedad`, `Porc. de trabajadores no precariedad`), 
+               names_to = "Situación", 
+               values_to = "Porcentaje")
 
 
+ggplot(Grafico_Precariedad_Nivel_Educativo, aes(x = `Nivel Educativo`, y = Porcentaje, fill = Situación)) +
+  geom_bar(stat = "identity", position = "stack", width = 0.7) +
+  geom_text(aes(label = paste0(round(Porcentaje, 1), "%")),
+            position = position_stack(vjust = 0.5),  
+            color = "black") +  
+  labs(title = "Porcentaje de Trabajadores por situación de precariedad y nivel educativo",
+       x = "Nivel Educativo", 
+       y = "Porcentaje",
+       fill = "Situación") +
+  theme_minimal() +
+  scale_y_continuous(labels = scales::percent_format(scale = 1)) + 
+  scale_fill_manual(values = c("Porc. de trabajadores en precariedad" = "lightcoral", 
+                                "Porc. de trabajadores no precariedad" = "lightblue"))+
+theme(axis.text.x = element_text(margin = margin(b = 10)))
 ```
