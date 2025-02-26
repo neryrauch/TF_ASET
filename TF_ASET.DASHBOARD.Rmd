@@ -2,61 +2,150 @@
 title: "Trabajo Final R (Dashboard)"
 author: "Nery Rauch y Luciana Zuñiga"
 date: "`r Sys.Date()`"
-output: 
-  flexdashboard::flex_dashboard:
-    orientation: columns
-    vertical_layout: fill
-    runtime: shiny
+output: html_document
+runtime: shiny
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE,warning=FALSE, error=FALSE, message=FALSE)
+
+library(shiny)
+library(flexdashboard)
+library(eph)
+library(plotly)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+
+
+variables <- c("CODUSU","NRO_HOGAR","COMPONENTE","ANO4","TRIMESTRE","AGLOMERADO","REGION","CH04","CH06","ESTADO","CAT_OCUP","CAT_INAC","PP04C99","PP07E","PP07H","NIVEL_ED","PONDERA")
+
+Base <- get_microdata(year=2024,period = 3, vars = variables)
+Base <- Base %>%
+  rename(Sexo=CH04) %>% 
+  mutate(Sexo = recode(Sexo, `1` = "Hombre", `2` = "Mujer"))
 ```
 
-This R Markdown document is made interactive using Shiny. Unlike the more traditional workflow of creating static reports, you can now create documents that allow your readers to change the assumptions underlying your analysis and see the results immediately. 
-
-To learn more, see [Interactive Documents](http://rmarkdown.rstudio.com/authoring_shiny.html).
-
-## Inputs and Outputs
-
-You can embed Shiny inputs and outputs in your document. Outputs are automatically updated whenever inputs change.  This demonstrates how a standard R plot can be made interactive by wrapping it in the Shiny `renderPlot` function. The `selectInput` and `sliderInput` functions create the input widgets used to drive the plot.
-
-```{r eruptions, echo=FALSE}
-inputPanel(
-  selectInput("n_breaks", label = "Number of bins:",
-              choices = c(10, 20, 35, 50), selected = 20),
-  
-  sliderInput("bw_adjust", label = "Bandwidth adjustment:",
-              min = 0.2, max = 2, value = 1, step = 0.2)
-)
-
-renderPlot({
-  hist(faithful$eruptions, probability = TRUE, breaks = as.numeric(input$n_breaks),
-       xlab = "Duration (minutes)", main = "Geyser eruption duration")
-  
-  dens <- density(faithful$eruptions, adjust = input$bw_adjust)
-  lines(dens, col = "blue")
-})
+```{r}
+Base_Precariedad<-Base%>%
+  filter(ESTADO == 1) %>%  
+  mutate(
+    Condición = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0)
+  )
 ```
 
-## Embedded Application
+```{r}
+Precariedad_Dashboard <- Base_Precariedad %>%
+  summarise(
+    "Trabajador en precariedad" = sum(PONDERA[Condición == 1], na.rm = TRUE),
+    "Trabajador en no precariedad" = sum(PONDERA[Condición == 0], na.rm = TRUE),
+    "Población ocupada" = sum(PONDERA, na.rm = TRUE),
+    "Porc. de trabajadores precarios" = sum(PONDERA[Condición == 1], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100,
+    "Porc. de trabajadores no precarios" = sum(PONDERA[Condición == 0], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100,
+    .groups = 'drop'
+  )
+```
 
-It's also possible to embed an entire Shiny application within an R Markdown document using the `shinyAppDir` function. This example embeds a Shiny application located in another directory:
+```{r}
+Base_Franjas_Etarias <- Base_Precariedad %>%
+  mutate("Franja Etaria" = case_when(
+    CH06 < 15 ~ "Menores",
+    CH06 >= 15 & CH06 <= 18 ~ "Jov.15-18",
+    CH06 >= 19 & CH06 <= 24 ~ "Jov.19-24",
+    CH06 >= 25 & CH06 <= 29 ~ "Jov.25-29",
+    CH06 >= 30 & CH06 <= 64 ~ "Adultos",
+    CH06 > 64 ~ "Adultos Mayores"
+  ))
 
-```{r tabsets, echo=FALSE}
-shinyAppDir(
-  system.file("examples/06_tabsets", package = "shiny"),
-  options = list(
-    width = "100%", height = 550
+Tabla_Franjas_Etarias <- Base_Franjas_Etarias %>%
+  summarise(
+    "Menores" = sum(PONDERA[`Franja Etaria` == "Menores"], na.rm = TRUE),
+    "Juventudes" = sum(PONDERA[`Franja Etaria` %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29")], na.rm = TRUE),
+    "Adultos" = sum(PONDERA[`Franja Etaria` == "Adultos"], na.rm = TRUE),
+    "Adultos Mayores" = sum(PONDERA[`Franja Etaria` == "Adultos Mayores"], na.rm = TRUE),
+    "Total" = sum(PONDERA, na.rm = TRUE),
+    .groups = 'drop'
+  )
+```
+
+```{r}
+```
+
+```{r}
+```
+
+```{r}
+Base_Nivel_Educativo <- Base %>%
+  mutate(
+    "Nivel Educativo" = factor(
+      case_when(
+        NIVEL_ED %in% c(7, 1, 2, 3) ~ "Menor a Secundaria",
+        NIVEL_ED %in% c(4, 5) ~ "Secundaria Completa",
+        NIVEL_ED == 6 ~ "Superior Completo",
+        TRUE ~ "Ns/Nr"
+      ),
+      levels = c("Menor a Secundaria", "Secundaria Completa", "Superior Completo")
+    )
+  ) %>%
+  summarise(
+    "Menor a Secundaria" = sum(PONDERA[`Nivel Educativo` == "Menor a Secundaria"], na.rm = TRUE),
+    "Secundaria Completa" = sum(PONDERA[`Nivel Educativo` == "Secundaria Completa"], na.rm = TRUE),
+    "Superior Completo" = sum(PONDERA[`Nivel Educativo` == "Superior Completo"], na.rm = TRUE),
+    "Total" = sum(PONDERA, na.rm = TRUE),
+    .groups = 'drop'
+  )
+```
+
+```{r eruptions, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+ui <- fluidPage(
+  titlePanel("Condición de trabajo entre ocupados"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("Condicion", label = "Elegir condición",
+                  choices = c("Precario", "No precario"),
+                  selected = "Precario", multiple = FALSE),
+      radioButtons("metric", label = "Seleccionar Indicador:",
+                   choices = c("Sexo", "Franja Etaria", "Nivel Educativo"),
+                   selected = "Sexo")
+    ),
+    mainPanel(
+      plotlyOutput("grafico")
+    )
   )
 )
+
+# Servidor del dashboard
+server <- function(input, output) {
+  output$grafico <- renderPlotly({
+    req(input$metric)  # Asegúrate de que el input esté disponible
+    
+    # Filtrar los datos según la condición seleccionada
+    filtered_data <- Precariedad_Dashboard %>%
+      filter(Condición == ifelse(input$Condicion == "Precario", 1, 0))
+
+    # Imprimir los datos filtrados para depuración
+    print(filtered_data)
+    
+    # Crear el gráfico
+    grafico <- ggplot(filtered_data, aes_string(x = input$metric, 
+                                                y = "Población ocupada",  # Asegúrate de que esta columna exista
+                                                fill = input$metric,
+                                                text = paste0(
+                                                  "</br> Población: ", round(filtered_data[["Población ocupada"]], 2)))) +
+      geom_col(position = "dodge") +
+      labs(y = "Población ocupada", x = input$metric) + 
+      theme(legend.position = "none")
+
+    ggplotly(grafico, tooltip = "text") %>%
+      layout(hovermode = "closest")  # Asegúrate de que el modo de hover esté habilitado
+  })
+}
+
+# Ejecutar la aplicación Shiny
+shinyApp(ui = ui, server = server)
 ```
-
-Note the use of the `height` parameter to determine how much vertical space the embedded application should occupy.
-
-You can also use the `shinyApp` function to define an application inline rather then in an external directory.
-
-In all of R code chunks above the `echo = FALSE` attribute is used. This is to prevent the R code within the chunk from rendering in the document alongside the Shiny components.
-
-
-

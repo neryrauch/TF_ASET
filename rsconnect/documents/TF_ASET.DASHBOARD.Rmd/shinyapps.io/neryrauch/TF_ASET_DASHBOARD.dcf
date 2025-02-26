@@ -1,0 +1,12 @@
+name: TF_ASET_DASHBOARD
+title: TF_ASET_DASHBOARD
+username: neryrauch
+account: neryrauch
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 14106437
+bundleId:
+url: https://neryrauch.shinyapps.io/TF_ASET_DASHBOARD/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

@@ -29,9 +29,6 @@ tinytex::install_tinytex()
 knitr::opts_chunk$set(echo = FALSE, include=TRUE)
 tinytex::tinytex_root()
 
-update.packages(ask = FALSE)
-tinytex::tlmgr_update()
-
 library(tidyverse)
 library(openxlsx)
 library(eph)
@@ -189,7 +186,7 @@ knitr::include_graphics("~/POSGRADO/CURSOS DE DOCTORADO/CURSO R/Informes y prece
 
 ## Precariedad laboral
 
-A continuación se aborda la precariedad laboral en el mercado de trabajo argentino de la población ocupada (exceptuando patrones y cuentapropistas).
+A continuación se aborda la precariedad laboral en el mercado de trabajo argentino, tomando como referencia a la población ocupada. Se consideran trabajadores en situación de precariedad a aquellos que se encuentran no registrados, en situación de inestabilidad (plan de empleo, beca o pasantía, periodo de prueba), trabajadores familiares sin remuneración y asalariados en establecimientos con menos de 5 empleados.
 
 ```{r}
 Precariedad <- Base %>%
@@ -229,11 +226,16 @@ Porcentaje_Precariedad <- Precariedad %>%
 ```
 
 ```{r}
-Grafico_Precariedad <- Porcentaje_Precariedad %>%
-  pivot_longer(cols = everything(), names_to = "Tipo", values_to = "Porcentaje")
+Porcentaje_Precariedad <- data.frame(
+  Categoria = c("Porc. de trabajadores en situación de precariedad", "Porc. de trabajadores en situación de no precariedad"),
+  Porcentaje = c(28, 72)
+)
+
+# Definir los colores para cada tipo
+colores <- c("Porc. de trabajadores en situación de precariedad" = "lightcoral", "Porc. de trabajadores en situación de no precariedad" = "lightblue")
 
 # Crear el gráfico de torta
-ggplot(Grafico_Precariedad, aes(x = "", y = Porcentaje, fill = Tipo)) +
+ggplot(Porcentaje_Precariedad, aes(x = "", y = Porcentaje, fill = Categoria)) +
   geom_bar(stat = "identity", width = 1) +
   coord_polar("y") +
   labs(title = "Porcentaje de trabajadores ocupados en base a situación de precariedad", 
@@ -242,7 +244,8 @@ ggplot(Grafico_Precariedad, aes(x = "", y = Porcentaje, fill = Tipo)) +
   theme_minimal() +
   theme(legend.title = element_blank()) +
   geom_text(aes(label = sprintf("%.1f%%", Porcentaje)), 
-            position = position_stack(vjust = 0.5))
+            position = position_stack(vjust = 0.5)) +
+  scale_fill_manual(values = colores)
 ```
 
 <br>
@@ -319,7 +322,7 @@ ggplot(Grafico_Precariedad_Sexo, aes(x = Sexo, y = Porcentaje, fill = Situación
 
 ```{r}
 Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
-  filter(ESTADO == 1 & `Franja Etaria` != "Menores" & `Franja Etaria` != "Adultos Mayores") %>%  
+  filter(ESTADO == 1) %>%  
   mutate(
     dummy_precariedad = ifelse(
       (CAT_OCUP == 3 & PP07H == 2) | 
@@ -334,24 +337,26 @@ Precariedad_Franja_Etaria <- Base_Franjas_Etarias %>%
     "Trabajador en no precariedad" = sum(PONDERA[dummy_precariedad == 0], na.rm = TRUE),
     "Población ocupada" = sum(PONDERA, na.rm = TRUE)
   ) %>%
-  ungroup() 
+  ungroup()
 
-Orden_Franja <- c("Jov.15-18","Jov.19-24","Jov.25-29","Adultos")  
+# Definir el orden de las franjas
+Orden_Franja <- c("Menores", "Jov.15-18", "Jov.19-24", "Jov.25-29", "Adultos", "Adultos Mayores")
 
-# Modificar el orden de las franjas etarias y formatear
+# Asegurarse de que 'Franja Etaria' sea un factor con el orden correcto
 Precariedad_Franja_Etaria_Tabla <- Precariedad_Franja_Etaria %>%
-  mutate(`Franja Etaria` = factor(`Franja Etaria`, levels = Orden_Franja)) 
-
-Precariedad_Franja_Etaria_Tabla <- Precariedad_Franja_Etaria %>%
+  mutate(`Franja Etaria` = factor(`Franja Etaria`, levels = Orden_Franja)) %>%
   mutate(
     "Trabajador en precariedad" = formatC(`Trabajador en precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
     "Trabajador en no precariedad" = formatC(`Trabajador en no precariedad`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0),
     "Población ocupada" = formatC(`Población ocupada`, format = "f", big.mark = ".", decimal.mark = ",", digits = 0)
   )
-  
-kable(Precariedad_Franja_Etaria_Tabla, caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad y la franja etaria", align = 'c') %>% 
+
+# Crear la tabla con kable
+kable(Precariedad_Franja_Etaria_Tabla, 
+      caption = "Cantidad de trabajadores ocupados en base a la situación de precariedad y la franja etaria", 
+      align = 'c') %>% 
   kable_styling(full_width = FALSE, position = "center",
-  bootstrap_options = c("striped", "hover", "responsive")) %>%
+                bootstrap_options = c("striped", "hover", "responsive")) %>%
   column_spec(1, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px;text-align: left;") %>%
   column_spec(2, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
   column_spec(3, bold = TRUE, color = "black", background = "white", extra_css = "padding: 10px; text-align: center;") %>%
