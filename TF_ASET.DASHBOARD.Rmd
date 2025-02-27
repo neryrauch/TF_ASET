@@ -2,7 +2,10 @@
 title: "Trabajo Final R (Dashboard)"
 author: "Nery Rauch y Luciana Zuñiga"
 date: "`r Sys.Date()`"
-output: html_document
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
 runtime: shiny
 ---
 
@@ -16,6 +19,8 @@ library(plotly)
 library(tidyverse)
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(scales)
 
 
 variables <- c("CODUSU","NRO_HOGAR","COMPONENTE","ANO4","TRIMESTRE","AGLOMERADO","REGION","CH04","CH06","ESTADO","CAT_OCUP","CAT_INAC","PP04C99","PP07E","PP07H","NIVEL_ED","PONDERA")
@@ -30,7 +35,7 @@ Base <- Base %>%
 Base_Precariedad<-Base%>%
   filter(ESTADO == 1) %>%  
   mutate(
-    Condición = ifelse(
+    Condicion = ifelse(
       (CAT_OCUP == 3 & PP07H == 2) | 
       (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
       (CAT_OCUP == 4) | 
@@ -40,20 +45,8 @@ Base_Precariedad<-Base%>%
 ```
 
 ```{r}
-Precariedad_Dashboard <- Base_Precariedad %>%
-  summarise(
-    "Trabajador en precariedad" = sum(PONDERA[Condición == 1], na.rm = TRUE),
-    "Trabajador en no precariedad" = sum(PONDERA[Condición == 0], na.rm = TRUE),
-    "Población ocupada" = sum(PONDERA, na.rm = TRUE),
-    "Porc. de trabajadores precarios" = sum(PONDERA[Condición == 1], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100,
-    "Porc. de trabajadores no precarios" = sum(PONDERA[Condición == 0], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100,
-    .groups = 'drop'
-  )
-```
-
-```{r}
 Base_Franjas_Etarias <- Base_Precariedad %>%
-  mutate("Franja Etaria" = case_when(
+  mutate(Franja_Etaria = case_when(
     CH06 < 15 ~ "Menores",
     CH06 >= 15 & CH06 <= 18 ~ "Jov.15-18",
     CH06 >= 19 & CH06 <= 24 ~ "Jov.19-24",
@@ -64,25 +57,19 @@ Base_Franjas_Etarias <- Base_Precariedad %>%
 
 Tabla_Franjas_Etarias <- Base_Franjas_Etarias %>%
   summarise(
-    "Menores" = sum(PONDERA[`Franja Etaria` == "Menores"], na.rm = TRUE),
-    "Juventudes" = sum(PONDERA[`Franja Etaria` %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29")], na.rm = TRUE),
-    "Adultos" = sum(PONDERA[`Franja Etaria` == "Adultos"], na.rm = TRUE),
-    "Adultos Mayores" = sum(PONDERA[`Franja Etaria` == "Adultos Mayores"], na.rm = TRUE),
+    "Menores" = sum(PONDERA[Franja_Etaria== "Menores"], na.rm = TRUE),
+    "Juventudes" = sum(PONDERA[Franja_Etaria %in% c("Jov.15-18", "Jov.19-24", "Jov.25-29")], na.rm = TRUE),
+    "Adultos" = sum(PONDERA[Franja_Etaria == "Adultos"], na.rm = TRUE),
+    "Adultos Mayores" = sum(PONDERA[Franja_Etaria == "Adultos Mayores"], na.rm = TRUE),
     "Total" = sum(PONDERA, na.rm = TRUE),
     .groups = 'drop'
   )
 ```
 
 ```{r}
-```
-
-```{r}
-```
-
-```{r}
 Base_Nivel_Educativo <- Base %>%
   mutate(
-    "Nivel Educativo" = factor(
+    Nivel_Educativo = factor(
       case_when(
         NIVEL_ED %in% c(7, 1, 2, 3) ~ "Menor a Secundaria",
         NIVEL_ED %in% c(4, 5) ~ "Secundaria Completa",
@@ -91,58 +78,139 @@ Base_Nivel_Educativo <- Base %>%
       ),
       levels = c("Menor a Secundaria", "Secundaria Completa", "Superior Completo")
     )
-  ) %>%
-  summarise(
-    "Menor a Secundaria" = sum(PONDERA[`Nivel Educativo` == "Menor a Secundaria"], na.rm = TRUE),
-    "Secundaria Completa" = sum(PONDERA[`Nivel Educativo` == "Secundaria Completa"], na.rm = TRUE),
-    "Superior Completo" = sum(PONDERA[`Nivel Educativo` == "Superior Completo"], na.rm = TRUE),
-    "Total" = sum(PONDERA, na.rm = TRUE),
-    .groups = 'drop'
+    )
+```
+
+```{r}
+Base_Dashboard <- Base %>%
+  filter(ESTADO == 1) %>%
+  mutate(
+    Condicion = ifelse(
+      (CAT_OCUP == 3 & PP07H == 2) | 
+      (CAT_OCUP == 3 & PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 & PP04C99 == 1),
+      1, 0
+    ),
+    Franja_Etaria = case_when(
+      CH06 < 15 ~ "Menores",
+      CH06 >= 15 & CH06 <= 18 ~ "Jov.15-18",
+      CH06 >= 19 & CH06 <= 24 ~ "Jov.19-24",
+      CH06 >= 25 & CH06 <= 29 ~ "Jov.25-29",
+      CH06 >= 30 & CH06 <= 64 ~ "Adultos",
+      CH06 > 64 ~ "Adultos Mayores"
+    ),
+    Nivel_Educativo = factor(
+      case_when(
+        NIVEL_ED %in% c(7, 1, 2, 3) ~ "Menor a Secundaria",
+        NIVEL_ED %in% c(4, 5) ~ "Secundaria Completa",
+        NIVEL_ED == 6 ~ "Superior Completo",
+        TRUE ~ "Ns/Nr"
+      ),
+      levels = c("Menor a Secundaria", "Secundaria Completa", "Superior Completo", "Ns/Nr")
+    )
   )
 ```
 
-```{r eruptions, echo=FALSE, warning=FALSE, error=FALSE, message=FALSE}
+```{r, include=FALSE}
+Precariedad_Dashboard <- Base_Dashboard %>%
+  group_by(Sexo, Franja_Etaria, Nivel_Educativo) %>%
+  summarise(
+    `Trabajador en precariedad` = sum(PONDERA[Condicion == 1], na.rm = TRUE),
+    `Trabajador en no precariedad` = sum(PONDERA[Condicion == 0], na.rm = TRUE),
+    Poblacion_ocupada = sum(PONDERA, na.rm = TRUE),
+    Porcentaje_Precarios = round(`Trabajador en precariedad` / Poblacion_ocupada * 100, 2),
+    Porcentaje_No_Precarios = round(`Trabajador en no precariedad` / Poblacion_ocupada * 100, 2),
+    .groups = 'drop'
+  ) 
+```
+
+```{r}
 ui <- fluidPage(
-  titlePanel("Condición de trabajo entre ocupados"),
-  sidebarLayout(
-    sidebarPanel(
-      selectInput("Condicion", label = "Elegir condición",
-                  choices = c("Precario", "No precario"),
-                  selected = "Precario", multiple = FALSE),
-      radioButtons("metric", label = "Seleccionar Indicador:",
-                   choices = c("Sexo", "Franja Etaria", "Nivel Educativo"),
-                   selected = "Sexo")
-    ),
-    mainPanel(
-      plotlyOutput("grafico")
-    )
+  titlePanel("Dashboard de Precariedad Laboral"),
+  mainPanel(
+    plotlyOutput("grafico_sexo"),
+    plotlyOutput("grafico_franja"),
+    plotlyOutput("grafico_nivel")
   )
 )
 
 # Servidor del dashboard
 server <- function(input, output) {
-  output$grafico <- renderPlotly({
-    req(input$metric)  # Asegúrate de que el input esté disponible
-    
-    # Filtrar los datos según la condición seleccionada
-    filtered_data <- Precariedad_Dashboard %>%
-      filter(Condición == ifelse(input$Condicion == "Precario", 1, 0))
+  
+  # Gráfico de Sexo
+  output$grafico_sexo <- renderPlotly({
+    data_sexo <- Precariedad_Dashboard %>%
+      group_by(Sexo) %>%
+      summarise(
+        `Trabajador en precariedad` = sum(`Trabajador en precariedad`),
+        `Trabajador en no precariedad` = sum(`Trabajador en no precariedad`),
+        .groups = 'drop'
+      ) %>%
+      pivot_longer(cols = c(`Trabajador en precariedad`, `Trabajador en no precariedad`),
+                   names_to = "Condicion", values_to = "Cantidad")
 
-    # Imprimir los datos filtrados para depuración
-    print(filtered_data)
-    
-    # Crear el gráfico
-    grafico <- ggplot(filtered_data, aes_string(x = input$metric, 
-                                                y = "Población ocupada",  # Asegúrate de que esta columna exista
-                                                fill = input$metric,
-                                                text = paste0(
-                                                  "</br> Población: ", round(filtered_data[["Población ocupada"]], 2)))) +
-      geom_col(position = "dodge") +
-      labs(y = "Población ocupada", x = input$metric) + 
-      theme(legend.position = "none")
+    grafico <- ggplot(data_sexo, aes(x = Sexo, y = Cantidad, fill = Condicion)) +
+      geom_bar(stat = "identity", position = "fill") +
+      geom_text(aes(label = paste0(round(Cantidad / sum(Cantidad) * 100, 1), "%")),
+                position = position_fill(vjust = 0.5), size = 3) +  # Añadir etiquetas porcentuales
+      labs(y = "Proporción (%)", x = "Sexo") +
+      scale_y_continuous(labels = percent) +
+      scale_fill_manual(values = c("Trabajador en precariedad" = "lightcoral", "Trabajador en no precariedad" = "lightblue"),
+                        labels = c("Trabajador en precariedad" = "Precarios", "Trabajador en no precariedad" = "No Precarios")) +
+      theme(legend.title = element_blank())
 
-    ggplotly(grafico, tooltip = "text") %>%
-      layout(hovermode = "closest")  # Asegúrate de que el modo de hover esté habilitado
+    ggplotly(grafico)
+  })
+  
+  # Gráfico de Franja Etaria
+  output$grafico_franja <- renderPlotly({
+    data_franja <- Precariedad_Dashboard %>%
+      group_by(Franja_Etaria) %>%
+      summarise(
+        `Trabajador en precariedad` = sum(`Trabajador en precariedad`),
+        `Trabajador en no precariedad` = sum(`Trabajador en no precariedad`),
+        .groups = 'drop'
+      ) %>%
+      pivot_longer(cols = c(`Trabajador en precariedad`, `Trabajador en no precariedad`),
+                   names_to = "Condicion", values_to = "Cantidad")
+
+    grafico <- ggplot(data_franja, aes(x = Franja_Etaria, y = Cantidad, fill = Condicion)) +
+      geom_bar(stat = "identity", position = "fill") +
+      geom_text(aes(label = paste0(round(Cantidad / sum(Cantidad) * 100, 1), "%")),
+                position = position_fill(vjust = 0.5), size = 3) +  # Añadir etiquetas porcentuales
+      labs(y = "Proporción (%)", x = "Franja Etaria") +
+      scale_y_continuous(labels = percent) +
+      scale_fill_manual(values = c("Trabajador en precariedad" = "lightcoral", "Trabajador en no precariedad" = "lightblue"),
+                        labels = c("Trabajador en precariedad" = "Precarios", "Trabajador en no precariedad" = "No Precarios")) +
+      theme(legend.title = element_blank())
+
+    ggplotly(grafico)
+  })
+  
+  # Gráfico de Nivel Educativo
+  output$grafico_nivel <- renderPlotly({
+    data_nivel <- Precariedad_Dashboard %>%
+      group_by(Nivel_Educativo) %>%
+      summarise(
+        `Trabajador en precariedad` = sum(`Trabajador en precariedad`),
+        `Trabajador en no precariedad` = sum(`Trabajador en no precariedad`),
+        .groups = 'drop'
+      ) %>%
+      pivot_longer(cols = c(`Trabajador en precariedad`, `Trabajador en no precariedad`),
+                   names_to = "Condicion", values_to = "Cantidad")
+
+    grafico <- ggplot(data_nivel, aes(x = Nivel_Educativo, y = Cantidad, fill = Condicion)) +
+      geom_bar(stat = "identity", position = "fill") +
+      geom_text(aes(label = paste0(round(Cantidad / sum(Cantidad) * 100, 1), "%")),
+                position = position_fill(vjust = 0.5), size = 3) +  # Añadir etiquetas porcentuales
+      labs(y = "Proporción (%)", x = "Nivel Educativo") +
+      scale_y_continuous(labels = percent) +
+      scale_fill_manual(values = c("Trabajador en precariedad" = "lightcoral", "Trabajador en no precariedad" = "lightblue"),
+                        labels = c("Trabajador en precariedad" = "Precarios", "Trabajador en no precariedad" = "No Precarios")) +
+      theme(legend.title = element_blank())
+
+    ggplotly(grafico)
   })
 }
 
