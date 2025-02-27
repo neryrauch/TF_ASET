@@ -1,19 +1,16 @@
 ---
-title: "Trabajo Final-Dashboard de Precariedad Laboral"
+title: "Dashboard de Precariedad Laboral - Trabajo Final"
 author: "Nery Rauch y Luciana Zúñiga"
 date: "`r Sys.Date()`"
-output: 
-    flexdashboard::flex_dashboard:
-    orientation: columns
-    vertical_layout: fill
-    runtime: shiny
+output: html_document
+runtime: shiny
 ---
 
-```{r setup, include=FALSE, echo=FALSE, message=FALSE, warning=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
 ```
 
-```{r}
+```{r, include=FALSE}
 
 library(shiny)
 library(flexdashboard)
@@ -91,7 +88,7 @@ Base_Nivel_Educativo <- Base %>%
   )
 ```
 
-```{r}
+```{r, include=FALSE}
 Base_Dashboard <- Base %>% 
   filter(ESTADO == 1) %>%  
   mutate(
@@ -124,7 +121,7 @@ Base_Dashboard <- Base %>%
   )
 ```
 
-```{r,include=FALSE, echo=FALSE, warning=FALSE, error=FALSE,message=FALSE}
+```{r, include=FALSE}
 Precariedad_Dashboard <- Base_Dashboard %>%
   group_by(Sexo, Franja_Etaria, Nivel_Educativo) %>%   
   summarise(
@@ -140,8 +137,7 @@ Precariedad_Dashboard <- Base_Dashboard %>%
 head(Precariedad_Dashboard)
 ```
 
-```{r eruptions, echo=FALSE, warning=FALSE, error=FALSE,message=FALSE}
-
+```{r}
 Precariedad_Dashboard <- Base_Dashboard %>%
   group_by(Sexo, Franja_Etaria, Nivel_Educativo) %>%   
   summarise(
@@ -217,4 +213,6 @@ server <- function(input, output) {
 
 # Ejecutar la aplicación Shiny
 shinyApp(ui = ui, server = server)
+
+
 ```

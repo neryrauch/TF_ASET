@@ -13,7 +13,7 @@
 
 <meta name="date" content="2025-02-27" />
 
-<title>Trabajo Final-Dashboard de Precariedad Laboral</title>
+<title>Dashboard de Precariedad Laboral - Trabajo Final</title>
 
 <script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
 // be compatible with the behavior of Pandoc < 2.8).
@@ -350,16 +350,18 @@ display: none;
 
 
 
-<h1 class="title toc-ignore">Trabajo Final-Dashboard de Precariedad
-Laboral</h1>
+<h1 class="title toc-ignore">Dashboard de Precariedad Laboral - Trabajo
+Final</h1>
 <h4 class="author">Nery Rauch y Luciana Zúñiga</h4>
 <h4 class="date">2025-02-27</h4>
 
 </div>
 
 
-<div id="r-markdown" class="section level2">
-<h2>R Markdown</h2>
+<pre class="r"><code>library(shiny)
+library(flexdashboard)
+library(eph)
+library(plotly)</code></pre>
 <pre><code>## Cargando paquete requerido: ggplot2</code></pre>
 <pre><code>## 
 ## Adjuntando el paquete: &#39;plotly&#39;</code></pre>
@@ -372,15 +374,118 @@ Laboral</h1>
 <pre><code>## The following object is masked from &#39;package:graphics&#39;:
 ## 
 ##     layout</code></pre>
+<pre class="r"><code>library(tidyverse)</code></pre>
 <pre><code>## -- Attaching core tidyverse packages ------------------------ tidyverse 2.0.0 --
 ## v dplyr     1.1.4     v readr     2.1.5
 ## v forcats   1.0.0     v stringr   1.5.1
 ## v lubridate 1.9.4     v tibble    3.2.1
-## v purrr     1.0.4     v tidyr     1.3.1
-## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
+## v purrr     1.0.4     v tidyr     1.3.1</code></pre>
+<pre><code>## -- Conflicts ------------------------------------------ tidyverse_conflicts() --
 ## x dplyr::filter() masks plotly::filter(), stats::filter()
 ## x dplyr::lag()    masks stats::lag()
 ## i Use the conflicted package (&lt;http://conflicted.r-lib.org/&gt;) to force all conflicts to become errors</code></pre>
+<pre class="r"><code>library(ggplot2)
+library(dplyr)
+library(tidyr)
+
+
+variables &lt;- c(&quot;CODUSU&quot;,&quot;NRO_HOGAR&quot;,&quot;COMPONENTE&quot;,&quot;ANO4&quot;,&quot;TRIMESTRE&quot;,&quot;AGLOMERADO&quot;,&quot;REGION&quot;,&quot;CH04&quot;,&quot;CH06&quot;,&quot;ESTADO&quot;,&quot;CAT_OCUP&quot;,&quot;CAT_INAC&quot;,&quot;PP04C99&quot;,&quot;PP07E&quot;,&quot;PP07H&quot;,&quot;NIVEL_ED&quot;,&quot;PONDERA&quot;)
+
+Base &lt;- get_microdata(year=2024,period = 3, vars = variables)
+Base &lt;- Base %&gt;%
+  rename(Sexo = CH04) %&gt;% 
+  mutate(Sexo = recode(Sexo, &quot;1&quot; = &quot;Hombre&quot;, &quot;2&quot; = &quot;Mujer&quot;))</code></pre>
+<pre class="r"><code>Base_Precariedad&lt;-Base%&gt;%
+  filter(ESTADO == 1) %&gt;%  
+  mutate(
+    Condición = ifelse(
+      (CAT_OCUP == 3 &amp; PP07H == 2) | 
+      (CAT_OCUP == 3 &amp; PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 &amp; PP04C99 == 1),
+      1, 0)
+  )</code></pre>
+<pre class="r"><code>Base_Franjas_Etarias &lt;- Base_Precariedad %&gt;%
+  mutate(&quot;Franja Etaria&quot; = case_when(
+    CH06 &lt; 15 ~ &quot;Menores&quot;,
+    CH06 &gt;= 15 &amp; CH06 &lt;= 18 ~ &quot;Jov.15-18&quot;,
+    CH06 &gt;= 19 &amp; CH06 &lt;= 24 ~ &quot;Jov.19-24&quot;,
+    CH06 &gt;= 25 &amp; CH06 &lt;= 29 ~ &quot;Jov.25-29&quot;,
+    CH06 &gt;= 30 &amp; CH06 &lt;= 64 ~ &quot;Adultos&quot;,
+    CH06 &gt; 64 ~ &quot;Adultos Mayores&quot;
+  ))
+
+Tabla_Franjas_Etarias &lt;- Base_Franjas_Etarias %&gt;%
+  summarise(
+    Menores = sum(PONDERA[&#39;Franja Etaria&#39; == &quot;Menores&quot;], na.rm = TRUE),
+    Juventudes = sum(PONDERA[&#39;Franja Etaria&#39; %in% c(&quot;Jov.15-18&quot;, &quot;Jov.19-24&quot;, &quot;Jov.25-29&quot;)], na.rm = TRUE),
+    Adultos = sum(PONDERA[&#39;Franja Etaria&#39; == &quot;Adultos&quot;], na.rm = TRUE),
+    Adultos_Mayores = sum(PONDERA[&#39;Franja Etaria&#39; == &quot;Adultos Mayores&quot;], na.rm = TRUE),
+    Total = sum(PONDERA, na.rm = TRUE),
+    .groups = &#39;drop&#39;
+  )</code></pre>
+<pre class="r"><code>Base_Nivel_Educativo &lt;- Base %&gt;%
+  mutate(
+    &quot;Nivel Educativo&quot; = factor(
+      case_when(
+        NIVEL_ED %in% c(7, 1, 2, 3) ~ &quot;Menor a Secundaria&quot;,
+        NIVEL_ED %in% c(4, 5) ~ &quot;Secundaria Completa&quot;,
+        NIVEL_ED == 6 ~ &quot;Superior Completo&quot;,
+        TRUE ~ &quot;Ns/Nr&quot;
+      ),
+      levels = c(&quot;Menor a Secundaria&quot;, &quot;Secundaria Completa&quot;, &quot;Superior Completo&quot;)
+    )
+  ) %&gt;%
+  summarise(
+    &quot;Menor a Secundaria&quot; = sum(PONDERA[&#39;Nivel Educativo&#39; == &quot;Menor a Secundaria&quot;], na.rm = TRUE),
+    &quot;Secundaria Completa&quot; = sum(PONDERA[&#39;Nivel Educativo&#39; == &quot;Secundaria Completa&quot;], na.rm = TRUE),
+    &quot;Superior Completo&quot; = sum(PONDERA[&#39;Nivel Educativo&#39; == &quot;Superior Completo&quot;], na.rm = TRUE),
+    &quot;Total&quot; = sum(PONDERA, na.rm = TRUE),
+    .groups = &#39;drop&#39;
+  )</code></pre>
+<pre class="r"><code>Base_Dashboard &lt;- Base %&gt;% 
+  filter(ESTADO == 1) %&gt;%  
+  mutate(
+    Condición = ifelse(
+      (CAT_OCUP == 3 &amp; PP07H == 2) | 
+      (CAT_OCUP == 3 &amp; PP07E %in% c(1, 2, 3)) | 
+      (CAT_OCUP == 4) | 
+      (CAT_OCUP == 3 &amp; PP04C99 == 1),
+      1, 0
+    ),
+    # Agregar la columna de Franja Etaria
+    Franja_Etaria = case_when(
+      CH06 &lt; 15 ~ &quot;Menores&quot;,
+      CH06 &gt;= 15 &amp; CH06 &lt;= 18 ~ &quot;Jov.15-18&quot;,
+      CH06 &gt;= 19 &amp; CH06 &lt;= 24 ~ &quot;Jov.19-24&quot;,
+      CH06 &gt;= 25 &amp; CH06 &lt;= 29 ~ &quot;Jov.25-29&quot;,
+      CH06 &gt;= 30 &amp; CH06 &lt;= 64 ~ &quot;Adultos&quot;,
+      CH06 &gt; 64 ~ &quot;Adultos Mayores&quot;
+    ),
+    # Agregar la columna de Nivel Educativo
+    Nivel_Educativo = factor(
+      case_when(
+        NIVEL_ED %in% c(7, 1, 2, 3) ~ &quot;Menor a Secundaria&quot;,
+        NIVEL_ED %in% c(4, 5) ~ &quot;Secundaria Completa&quot;,
+        NIVEL_ED == 6 ~ &quot;Superior Completo&quot;,
+        TRUE ~ &quot;Ns/Nr&quot;
+      ),
+      levels = c(&quot;Menor a Secundaria&quot;, &quot;Secundaria Completa&quot;, &quot;Superior Completo&quot;, &quot;Ns/Nr&quot;)
+    )
+  )</code></pre>
+<pre class="r"><code>Precariedad_Dashboard &lt;- Base_Dashboard %&gt;%
+  group_by(Sexo, Franja_Etaria, Nivel_Educativo) %&gt;%   
+  summarise(
+    &quot;Trabajador en precariedad&quot; = sum(PONDERA[Condición == 1], na.rm = TRUE),     
+    &quot;Trabajador en no precariedad&quot; = sum(PONDERA[Condición == 0], na.rm = TRUE),     
+    &quot;Población ocupada&quot; = sum(PONDERA, na.rm = TRUE),     
+    &quot;Porc. de trabajadores precarios&quot; = round(sum(PONDERA[Condición == 1], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100, 2),     
+    &quot;Porc. de trabajadores no precarios&quot; = round(sum(PONDERA[Condición == 0], na.rm = TRUE) / sum(PONDERA, na.rm = TRUE) * 100, 2),
+    .groups = &#39;drop&#39;
+  ) 
+
+# Mostrar los primeros registros del dataframe
+head(Precariedad_Dashboard)</code></pre>
 <pre><code>## # A tibble: 6 x 8
 ##   Sexo   Franja_Etaria   Nivel_Educativo     `Trabajador en precariedad`
 ##   &lt;chr&gt;  &lt;chr&gt;           &lt;fct&gt;                                     &lt;int&gt;
@@ -393,9 +498,83 @@ Laboral</h1>
 ## # i 4 more variables: `Trabajador en no precariedad` &lt;int&gt;,
 ## #   `Población ocupada` &lt;int&gt;, `Porc. de trabajadores precarios` &lt;dbl&gt;,
 ## #   `Porc. de trabajadores no precarios` &lt;dbl&gt;</code></pre>
+<pre class="r"><code>Precariedad_Dashboard &lt;- Base_Dashboard %&gt;%
+  group_by(Sexo, Franja_Etaria, Nivel_Educativo) %&gt;%   
+  summarise(
+    `Trabajador en precariedad` = sum(PONDERA[Condición == 1], na.rm = TRUE),     
+    `Trabajador en no precariedad` = sum(PONDERA[Condición == 0], na.rm = TRUE),     
+    `Población ocupada` = sum(PONDERA, na.rm = TRUE),     
+    .groups = &#39;drop&#39;
+  ) %&gt;%
+  mutate(
+    Porcentaje_Precarios = round(`Trabajador en precariedad` / `Población ocupada` * 100, 2),
+    Porcentaje_No_Precarios = round(`Trabajador en no precariedad` / `Población ocupada` * 100, 2)
+  ) %&gt;%
+  pivot_longer(cols = starts_with(&quot;Porcentaje_&quot;),
+               names_to = &quot;Condicion&quot;,
+               values_to = &quot;Porcentaje&quot;) %&gt;%
+  mutate(Categoria = case_when(
+    Condicion == &quot;Porcentaje_Precarios&quot; ~ &quot;Precario&quot;,
+    TRUE ~ &quot;No Precario&quot;
+  ))
+
+#ui
+ui &lt;- fluidPage(
+  titlePanel(&quot;Dashboard de Precariedad Laboral&quot;),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput(&quot;condicion&quot;, label = &quot;Seleccionar condición:&quot;,
+                  choices = c(&quot;Precario&quot; = 1, &quot;No precario&quot; = 0),
+                  selected = 1),
+      radioButtons(&quot;categoria&quot;, label = &quot;Seleccionar Categoría:&quot;,
+                   choices = c(&quot;Sexo&quot;, &quot;Franja_Etaria&quot;, &quot;Nivel_Educativo&quot;),
+                   selected = &quot;Sexo&quot;)
+    ),
+    mainPanel(
+      plotlyOutput(&quot;grafico&quot;)
+    )
+  )
+)
+
+##server 
+server &lt;- function(input, output) {
+  output$grafico &lt;- renderPlotly({
+    # Filtrar por la condición seleccionada
+    filtered_data &lt;- Precariedad_Dashboard %&gt;%
+      filter(Categoria == ifelse(input$condicion == 1, &quot;Precario&quot;, &quot;No Precario&quot;)) %&gt;%
+      group_by(across(all_of(input$categoria))) %&gt;%
+      summarise(
+        Trabajadores = sum(`Trabajador en precariedad` * (input$condicion == 1) + 
+                           `Trabajador en no precariedad` * (input$condicion == 0), na.rm = TRUE),
+        Poblacion_Ocupada = sum(`Población ocupada`, na.rm = TRUE),
+        .groups = &quot;drop&quot;
+      ) %&gt;%
+      mutate(Porcentaje = round((Trabajadores / Poblacion_Ocupada) * 100, 2))  # Recalcular porcentaje
+
+    # Comprobar si hay datos
+    if (nrow(filtered_data) == 0) {
+      return(NULL)  
+    }
+
+    # Crear gráfico
+    grafico &lt;- ggplot(filtered_data, aes(x = !!sym(input$categoria), y = Porcentaje, fill = !!sym(input$categoria))) +
+      geom_bar(stat = &quot;identity&quot;, position = &quot;dodge&quot;, width = 0.6) +
+      geom_text(aes(label = paste0(Porcentaje, &quot;%&quot;)), 
+                position = position_dodge(width = 0.6), 
+                vjust = -0.3, hjust = 0.5) +
+      labs(y = &quot;Porcentaje (%)&quot;, x = input$categoria) +
+      theme_minimal() +
+      theme(legend.position = &quot;none&quot;, axis.text.x = element_text(angle = 45, hjust = 1))
+
+    ggplotly(grafico, tooltip = &quot;text&quot;) %&gt;%
+      layout(hovermode = &quot;closest&quot;)
+  })
+}
+
+# Ejecutar la aplicación Shiny
+shinyApp(ui = ui, server = server)</code></pre>
 <pre><code>## PhantomJS not found. You can install it with webshot::install_phantomjs(). If it is installed, please make sure the phantomjs executable can be found via the PATH variable.</code></pre>
 <div style="width: 100% ; height: 400px ; text-align: center; box-sizing: border-box; -moz-box-sizing: border-box; -webkit-box-sizing: border-box;" class="muted well">Shiny applications not supported in static R Markdown documents</div>
-</div>
 
 
 
